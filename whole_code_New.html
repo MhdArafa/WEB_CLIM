@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Climate Normals Explorer</title>
+  <link rel="stylesheet" href="https://unpkg.com/ol@10.4.0/ol.css"/>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      height: 100%;
+      width: 100%;
+    }
+
+    .welcome-container {
+      position: absolute;
+      z-index: 1001;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, #e0f7fa 0%, #80deea 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      text-align: center;
+    }
+
+    .welcome-box {
+      background: rgba(255, 255, 255, 0.95);
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+      max-width: 650px;
+    }
+
+    .welcome-box h1 {
+      color: #006064;
+      font-size: 28px;
+      margin-bottom: 20px;
+    }
+
+    .welcome-box p {
+      color: #455a64;
+      font-size: 16px;
+      margin-bottom: 30px;
+    }
+
+    .btn {
+      background: #00796b;
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      font-size: 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn:hover {
+      background: #004d40;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+    }
+
+    #viewer {
+      display: none;
+      height: 100vh;
+      width: 100%;
+    }
+
+    h2 {
+      text-align: center;
+      color: white;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+      background-image: url('Temp.jpg'); /* Replace with your actual image path */
+      background-size: cover;
+      background-position: center;
+      padding: 8px 5px 0 5px;
+      font-size: 30px;
+      font-weight: bold;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    #map {
+      width: 100%;
+      height: 90vh;
+    }
+
+    #layer-control {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 10px;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      z-index: 1000;
+    }
+
+    #info-box {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 300px;
+      max-height: 300px;
+      overflow-y: auto;
+      background: white;
+      border: 1px solid #aaa;
+      border-radius: 8px;
+      padding: 10px;
+      box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.2);
+      display: none;
+      z-index: 1000;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Welcome Page -->
+  <div class="welcome-container" id="welcome">
+    <div class="welcome-box">
+      <h1>Explore Climate Normals of India</h1>
+      <p>An interactive map to explore spatial climate normals data including rainfall and temperature trends</p>
+      <button class="btn" onclick="startViewer()">Launch Viewer</button>
+    </div>
+  </div>
+
+  <!-- Viewer -->
+  <div id="viewer">
+    <h2>Interactive Climate Normals Map (2000-24)</h2>
+    <div id="map" class="map"></div>
+    <div id="layer-control">
+      <label><input type="checkbox" id="toggle-osm" checked> OSM Base Map</label><br>
+      <label><input type="checkbox" id="toggle-boundary" checked> State Boundaries</label><br>
+      <label><input type="checkbox" id="toggle-climate" checked> Climate Normals Points</label>
+    </div>
+    <div id="info-box"></div>
+  </div>
+  <script src="https://unpkg.com/ol@10.4.0/dist/ol.js"></script>
+  <script>
+    function startViewer() {
+      document.getElementById('welcome').style.display = 'none';
+      document.getElementById('viewer').style.display = 'block';
+    }
+
+    // Map layers
+    const osmLayer = new ol.layer.Tile({
+      source: new ol.source.OSM(),
+      visible: true
+    });
+
+    const boundaryLayer = new ol.layer.Vector({
+      source: new ol.source.Vector({
+        url: 'state_boundary.geojson',
+        format: new ol.format.GeoJSON()
+      }),
+      style: new ol.style.Style({
+        stroke: new ol.style.Stroke({ color: '#0000ff', width: 2 }),
+        fill: new ol.style.Fill({ color: 'rgba(0, 0, 255, 0.1)' })
+      }),
+      visible: true
+    });
+
+    const climateLayerSource = new ol.source.Vector({
+      url: 'climate_normals_point.geojson',
+      format: new ol.format.GeoJSON()
+    });
+
+    const defaultClimateStyle = new ol.style.Style({
+      image: new ol.style.Circle({
+        radius: 5,
+        fill: new ol.style.Fill({ color: 'red' }),
+        stroke: new ol.style.Stroke({ color: 'white', width: 1 })
+      })
+    });
+
+    const highlightClimateStyle = new ol.style.Style({
+      image: new ol.style.Circle({
+        radius: 7,
+        fill: new ol.style.Fill({ color: 'yellow' }),
+        stroke: new ol.style.Stroke({ color: 'black', width: 2 })
+      })
+    });
+
+    let selectedFeature = null;
+
+    const climateLayer = new ol.layer.Vector({
+      source: climateLayerSource,
+      style: function (feature) {
+        return feature === selectedFeature ? highlightClimateStyle : defaultClimateStyle;
+      },
+      visible: true
+    });
+
+    const map = new ol.Map({
+      target: 'map',
+      layers: [osmLayer, boundaryLayer, climateLayer],
+      view: new ol.View({
+        center: ol.proj.fromLonLat([78.9629, 22.5937]),
+        zoom: 4.5
+      })
+    });
+
+    // Toggle controls
+    document.getElementById('toggle-osm').addEventListener('change', e => {
+      osmLayer.setVisible(e.target.checked);
+    });
+
+    document.getElementById('toggle-boundary').addEventListener('change', e => {
+      boundaryLayer.setVisible(e.target.checked);
+    });
+
+    document.getElementById('toggle-climate').addEventListener('change', e => {
+      climateLayer.setVisible(e.target.checked);
+    });
+
+    // Feature click info box
+    const infoBox = document.getElementById('info-box');
+
+    map.on('singleclick', function (evt) {
+      const feature = map.forEachFeatureAtPixel(evt.pixel, function (feat) {
+        return feat;
+      });
+
+      if (feature && climateLayer.getSource().hasFeature(feature)) {
+        selectedFeature = feature;
+        climateLayer.setStyle(climateLayer.getStyle());
+
+        const properties = feature.getProperties();
+        delete properties.geometry;
+
+        let content = '<b>Climate Normals Point Info:</b><br><ul>';
+        for (const key in properties) {
+          content += `<li><strong>${key}</strong>: ${properties[key]}</li>`;
+        }
+        content += '</ul>';
+
+        infoBox.innerHTML = content;
+        infoBox.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>
